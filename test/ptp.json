@@ -1,4 +1,11 @@
 {
+	"cniVersion": "1.0.0",
 	"name": "mynet",
-	"type": "ptp"
+	"type": "ptp",
+	"ipam": {
+		"type": "host-local",
+		"ranges": [
+			[ { "subnet": "10.22.22.0/24" } ]
+		]
+	}
 }

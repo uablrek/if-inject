@@ -23,6 +23,8 @@ var version = "unknown"
 var cmds = map[string]func(ctx context.Context, args []string) int{
 	"netns": getNetns,
 	"add": add,
+	"del": del,
+	"check": check,
 }
 
 func main() {
@@ -45,10 +47,10 @@ func getNetns(ctx context.Context, args []string) int {
 	fset := flag.NewFlagSet("", flag.ExitOnError)
 	ns := fset.String("ns", "default", "Namespace")
 	pod := fset.String("pod", "", "POD")
-	logger.V(2).Info("getNetns", "ns", ns, "pod", pod)
 	if fset.Parse(args[1:]) != nil {
 		return 0
 	}
+	logger.V(2).Info("getNetns", "ns", ns, "pod", pod)
 	if *pod == "" {
 		logger.Error(fmt.Errorf("Must be specified"), "pod")
 		return 1
@@ -76,6 +78,14 @@ func getNetns(ctx context.Context, args []string) int {
 func add(ctx context.Context, args []string) int {
 	return invokeCni(ctx, "add", args)
 }
+// del Delete a network
+func del(ctx context.Context, args []string) int {
+	return invokeCni(ctx, "del", args)
+}
+// check Check a network
+func check(ctx context.Context, args []string) int {
+	return invokeCni(ctx, "check", args)
+}
 
 // invokeCni Invoke an operation over the CNI
 func invokeCni(ctx context.Context, op string, args []string) int {
@@ -85,11 +95,11 @@ func invokeCni(ctx context.Context, op string, args []string) int {
 	pod := fset.String("pod", "", "POD")
 	iface := fset.String("interface", "net1", "Interface name in the POD")
 	spec := fset.String("spec", "", "The CNI spec (file)")
-	logger.V(2).Info(
-		"invokeCni", "ns", ns, "pod", pod, "interface", iface, "spec", spec)
 	if fset.Parse(args[1:]) != nil {
 		return 0
 	}
+	logger.V(2).Info(
+		"invokeCni", "ns", ns, "pod", pod, "interface", iface, "spec", spec)
 	if *pod == "" {
 		logger.Error(fmt.Errorf("Must be specified"), "pod")
 		return 1
@@ -138,6 +148,10 @@ func invokeCni(ctx context.Context, op string, args []string) int {
 		if result != nil {
 			_ = result.Print()
 		}
+	case "del":
+		err = cninet.DelNetwork(ctx, netconf, rt)
+	case "check":
+		err = cninet.CheckNetwork(ctx, netconf, rt)
 	}
 	if err != nil {
 		logger.Error(err, "invoke CNI", "op", op)

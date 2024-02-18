@@ -45,35 +45,6 @@ cmd_env() {
 		exit 0
 	fi
 }
-##   clone [--template=template|basic|basic-cmd] [--module-path=] <dest>
-##     Clone this template
-cmd_clone() {
-	test -n "$1" || die "No dest"
-	test -e "$1" -a ! -d "$1" && die "Dest exist but is not a directory"
-	local dst=$(readlink -f $1)
-	cd $dir
-	test -n "$__template" || __template=template
-	test -d "cmd/$__template" || die "Not a directory [cmd/$__template]"
-	mkdir -p "$dst" || die "Mkdir dest"
-	cp -r $dir/* "$dst" || die "Copy failed"
-	rm -rf $dst/_output $dst/cmd/* $dst/pkg
-
-	test "$__template" = "template" && cp -r $dir/pkg $dst
-	cp -r cmd/$__template $dst/cmd
-	if test -n "$__module_path"; then
-		rm -f $dst/go.mod $dst/go.sum
-		cd $dst
-		if test "$__template" = "template"; then
-			sed -i -e "s,github.com/uablrek/template,$__module_path," \
-				$(find cmd pkg -name '*.go')
-		else
-			local cmd=$(basename $__module_path)
-			mv cmd/$__template cmd/$cmd
-		fi
-		go mod init $__module_path
-		go mod tidy
-	fi
-}
 ##   dynamic [--version=] [--dest=]
 ##     Build with dynamic linking
 cmd_dynamic() {
@@ -83,6 +54,7 @@ cmd_dynamic() {
 	cd $dir
 	local dst=$(readlink -f $__dest)
 	go build -o $dst -ldflags "-X main.version=$__version" ./cmd/...
+	strip $__dest/if-inject
 }
 ##   static [--version=] [--dest=]
 ##     Build with static linking
@@ -94,6 +66,7 @@ cmd_static() {
 	cd $dir
 	CGO_ENABLED=0 GOOS=linux go build -o $dst \
 		-ldflags "-extldflags '-static' -X main.version=$__version" ./cmd/...
+	strip $__dest/if-inject
 }
 
 ##
