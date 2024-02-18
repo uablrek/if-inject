@@ -113,7 +113,7 @@ func (conn *RuntimeConnection) GetNetns(
 	}
 	infomap := infop.(map[string]any)
 	// To see what we get from the runtime:
-	// if-inject -loglevel 4 getnetns -ns if-inject -pod $pod 2> log
+	// if-inject -loglevel 4 netns -ns if-inject -pod $pod 2> log
 	// jq < log
 	// cat log | jq .infomap.runtimeSpec.linux.namespaces
 	logger.V(4).Info("Pod info", "infomap", infomap)

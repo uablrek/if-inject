@@ -14,11 +14,12 @@ import (
 	"github.com/go-logr/zapr"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"github.com/uablrek/if-inject/pkg/util"
 )
 
 var version = "unknown"
 var cmds = map[string]func(ctx context.Context, args []string) int{
-	"getnetns": getNetns,
+	"netns": getNetns,
 }
 
 func main() {
@@ -49,6 +50,22 @@ func getNetns(ctx context.Context, args []string) int {
 		logger.Error(fmt.Errorf("Must be specified"), "pod")
 		return 1
 	}
+	podObj, err := util.GetPOD(ctx, *ns, *pod)
+	if err != nil {
+		logger.Error(err, "GetPOD")
+		return 1
+	}
+	runtime, err := util.NewRuntimeConnection(ctx, "")
+	if err != nil {
+		logger.Error(err, "RuntimeConnection")
+		return 1
+	}
+	netns, _, err := runtime.GetNetns(ctx, podObj)
+	if err != nil {
+		logger.Error(err, "GetNetns")
+		return 1
+	}
+	fmt.Println(netns)
 	return 0
 }
 
@@ -79,7 +96,6 @@ func invokeCmd(ctx context.Context, args []string) int {
 		}
 		return 0
 	}
-
 	if cmd, ok := cmds[args[0]]; ok {
 		rc := cmd(ctx, args)
 		return rc
