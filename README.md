@@ -73,7 +73,7 @@ We will do the same thing as in the previous paragraph but using the
 `ptp` plugin must be in `/opt/cni/bin/` on the node.
 
 ```
-if-inject -loglevel 2 inject -ns if-inject -pod $pod -spec /etc/kubernetes/if-inject/ptp.json 2>&1 | jq
+if-inject -loglevel 2 add -ns if-inject -pod $pod -spec /etc/kubernetes/if-inject/ptp.json 2>&1 | jq
 ```
 
 
