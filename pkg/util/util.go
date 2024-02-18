@@ -1,6 +1,6 @@
 /*
-  SPDX-License-Identifier: CC0-1.0
-  https://creativecommons.org/publicdomain/zero/1.0/
+SPDX-License-Identifier: CC0-1.0
+https://creativecommons.org/publicdomain/zero/1.0/
 */
 package util
 
@@ -8,11 +8,11 @@ import (
 	"context"
 	"fmt"
 
+	k8s "k8s.io/api/core/v1"
+	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	k8s "k8s.io/api/core/v1"
-	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func GetClientset() (*kubernetes.Clientset, error) {

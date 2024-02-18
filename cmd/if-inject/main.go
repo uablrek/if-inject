@@ -1,6 +1,6 @@
 /*
-  SPDX-License-Identifier: CC0-1.0
-  https://creativecommons.org/publicdomain/zero/1.0/
+SPDX-License-Identifier: CC0-1.0
+https://creativecommons.org/publicdomain/zero/1.0/
 */
 package main
 
@@ -12,9 +12,9 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
+	"github.com/uablrek/if-inject/pkg/util"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"github.com/uablrek/if-inject/pkg/util"
 )
 
 var version = "unknown"

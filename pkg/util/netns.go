@@ -1,6 +1,6 @@
 /*
-  SPDX-License-Identifier: CC0-1.0
-  https://creativecommons.org/publicdomain/zero/1.0/
+SPDX-License-Identifier: CC0-1.0
+https://creativecommons.org/publicdomain/zero/1.0/
 */
 package util
 
@@ -40,7 +40,7 @@ func NewRuntimeConnection(
 		"unix:///var/run/crio/crio.sock",
 	}
 	logger := logr.FromContextOrDiscard(ctx).V(2)
-	for _,u := range searchURLs {
+	for _, u := range searchURLs {
 		if u == "" {
 			continue
 		}
@@ -83,6 +83,7 @@ func doConnect(ctx context.Context, URL string) (*RuntimeConnection, error) {
 	conn.client = cri.NewRuntimeServiceClient(conn.conn)
 	return &conn, nil
 }
+
 // GetNetns Returns the netns and containerID for the POD
 func (conn *RuntimeConnection) GetNetns(
 	ctx context.Context, pod *k8s.Pod) (string, string, error) {
@@ -108,7 +109,7 @@ func (conn *RuntimeConnection) GetNetns(
 
 	var infop any
 	err = json.Unmarshal([]byte(info["info"]), &infop)
-	if (err != nil) {
+	if err != nil {
 		return "", "", err
 	}
 	infomap := infop.(map[string]any)
