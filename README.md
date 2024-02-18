@@ -44,9 +44,9 @@ kubectl get pods -n if-inject -o wide
 # On the node, pick a local POD
 pod=<pod-on-the-local-node>
 if-inject netns -ns if-inject -pod $pod
-# Output with cri-o (1.28.1):
+# Output with cri-o (1.28.1/crun):
 /var/run/netns/c913ee97-ebf8-4e77-8167-96b157e5e149
-# Output with containerd (1.7.11):
+# Output with containerd (1.7.11/runc):
 /proc/776/ns/net
 
 ns=$(if-inject netns -ns if-inject -pod $pod)
@@ -71,6 +71,8 @@ ip link del pod0
 We will do the same thing as in the previous paragraph but using the
 [ptp cni-plugin](https://www.cni.dev/plugins/current/main/ptp/). The
 `ptp` and `host-local` plugins must be in `/opt/cni/bin/` on the node.
+The `ptp` plugin *requires* an "ipam", so this time an IPv4 address is
+assigned.
 
 ```
 # Copy "./if-inject" and "test/ptp.json" to a node 
@@ -81,14 +83,13 @@ kubectl get pods -n if-inject -o wide
 pod=<pod-on-the-local-node>
 if-inject add -ns if-inject -pod $pod -spec ptp.json 2>&1 | jq
 kubectl exec -n if-inject $pod -- ip addr show net1
-ping 10.22.22.2 # (use your own if it differs)
+ping 10.22.22.2 # (use your own address if it differs)
 ```
 
-The `ptp` plugin *requires* an "ipam", so this time an IPv4 address is
-assigned. Remove with:
-
+Remove with:
 ```
 if-inject del -ns if-inject -pod $pod -spec ptp.json
+rm -r /var/lib/cni/networks/mynet/  # clean-up the ipam dir
 ```
 
 ## The if-inject program
@@ -100,8 +101,11 @@ POD-name rather then the Linux network namespace.
 
 Build:
 ```
+make  # in current dir with a generated version
 __version=0.0.1-local make O=/tmp   # O is the destination dir
 /tmp/if-inject -version
+# Or
+./build.sh static --version=0.0.1-local --dest=/tmp
 ```
 
 Logging goes to `stderr` and is in `json` format. Example:
