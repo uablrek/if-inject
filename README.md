@@ -17,11 +17,11 @@ That said, it must be emphasised that maintaining such interfaces in
 K8s, considering things like configuration, life-cycle management,
 routing etc, can be *very* hard!
 
-This purpose of this repo is educational, not to be a product. If you
+The purpose of this repo is educational, not to be a product. If you
 need a product, please check the [Multus thick plugin](
 https://github.com/k8snetworkplumbingwg/multus-cni), and monitor the
-[K8s multi-network effort](
-https://github.com/kubernetes/enhancements/pull/3700).
+K8s [multi-network](https://github.com/kubernetes/enhancements/pull/3700)
+and [KNI](https://github.com/kubernetes/enhancements/pull/4477) efforts.
 
 
 
