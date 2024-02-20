@@ -171,7 +171,6 @@ func createLogger(lvl int) logr.Logger {
 
 // invokeCmd Invoke a sub-command
 func invokeCmd(ctx context.Context, args []string) int {
-	logger := logr.FromContextOrDiscard(ctx)
 	if len(args) < 1 {
 		fmt.Println("Subcommands:")
 		for k := range cmds {
@@ -180,9 +179,9 @@ func invokeCmd(ctx context.Context, args []string) int {
 		return 0
 	}
 	if cmd, ok := cmds[args[0]]; ok {
-		rc := cmd(ctx, args)
-		return rc
+		return cmd(ctx, args)
 	}
+	logger := logr.FromContextOrDiscard(ctx)
 	logger.Info("Invalid", "command", args[0])
 	return -1
 }
