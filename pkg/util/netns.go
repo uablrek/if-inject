@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"time"
@@ -19,6 +20,7 @@ import (
 )
 
 type RuntimeConnection struct {
+	io.Closer
 	conn   *grpc.ClientConn
 	client cri.RuntimeServiceClient
 }
@@ -54,6 +56,9 @@ func NewRuntimeConnection(
 	}
 	return nil, fmt.Errorf("Runtime not found")
 }
+func (conn *RuntimeConnection) Close() error {
+	return conn.conn.Close()
+}
 
 func doConnect(ctx context.Context, URL string) (*RuntimeConnection, error) {
 	logger := logr.FromContextOrDiscard(ctx)
@@ -84,29 +89,52 @@ func doConnect(ctx context.Context, URL string) (*RuntimeConnection, error) {
 	return &conn, nil
 }
 
-// GetNetns Returns the netns and containerID for the POD
-func (conn *RuntimeConnection) GetNetns(
-	ctx context.Context, pod *k8s.Pod) (string, string, error) {
-	if len(pod.Status.ContainerStatuses) == 0 {
-		return "", "", fmt.Errorf("No container status")
-	}
+// GetNetns Returns the netns and containerID for a POD
+func GetNetns(ctx context.Context, pod *k8s.Pod) (string, string, error) {
+	/*
+	   There doesn't seem to be a defined way, or best practice for
+	   this. The netns is not known in K8s, but in the CRI-plugin
+	   (e.g. cri-o or containerd). The safest way seem to be to get
+	   the pid of a running container and return "/proc/pid/ns/net".
+	*/
+	logger := logr.FromContextOrDiscard(ctx)
+	logger.V(4).Info("GetNetns", "pod", *pod)
 
-	u, err := url.Parse(pod.Status.ContainerStatuses[0].ContainerID)
+	// Find a running container, and get the ContainerID
+	var u *url.URL
+	var err error
+	for _, c := range pod.Status.ContainerStatuses {
+		if c.State.Running == nil {
+			continue
+		}
+		u, err = url.Parse(c.ContainerID)
+		if err != nil {
+			return "", "", err
+		}
+		break
+	}
+	if u == nil {
+		return "", "", fmt.Errorf("No running container found")
+	}
+	logger.V(2).Info("ContainerID", "url", u)
+
+	// Get the ContainerStatus from the runtime
+	conn, err := NewRuntimeConnection(ctx, "")
 	if err != nil {
 		return "", "", err
 	}
-	logger := logr.FromContextOrDiscard(ctx)
-	logger.V(2).Info("ContainerID", "url", u)
+	defer conn.Close()
 	request := &cri.ContainerStatusRequest{
 		ContainerId: u.Host,
-		Verbose:     true,
+		Verbose:     true,		// request the "Info" map
 	}
 	r, err := conn.client.ContainerStatus(ctx, request)
 	if err != nil {
 		return "", "", err
 	}
-	info := r.GetInfo()
 
+	// Read the "Info" map
+	info := r.GetInfo()
 	var infop any
 	err = json.Unmarshal([]byte(info["info"]), &infop)
 	if err != nil {
@@ -115,8 +143,7 @@ func (conn *RuntimeConnection) GetNetns(
 	infomap := infop.(map[string]any)
 	// To see what we get from the runtime:
 	// if-inject -loglevel 4 netns -ns if-inject -pod $pod 2> log
-	// jq < log
-	// cat log | jq .infomap.runtimeSpec.linux.namespaces
+	// cat log | jq
 	logger.V(4).Info("Pod info", "infomap", infomap)
 	// TODO: errorhandling on type-casts
 	namespaces := infomap["runtimeSpec"].(map[string]any)["linux"].(map[string]any)["namespaces"].([]any)

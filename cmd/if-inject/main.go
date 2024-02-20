@@ -10,20 +10,20 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/containernetworking/cni/libcni"
+	"github.com/containernetworking/cni/pkg/types"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
 	"github.com/uablrek/if-inject/pkg/util"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"github.com/containernetworking/cni/libcni"
-	"github.com/containernetworking/cni/pkg/types"
 )
 
 var version = "unknown"
 var cmds = map[string]func(ctx context.Context, args []string) int{
 	"netns": getNetns,
-	"add": add,
-	"del": del,
+	"add":   add,
+	"del":   del,
 	"check": check,
 }
 
@@ -60,12 +60,7 @@ func getNetns(ctx context.Context, args []string) int {
 		logger.Error(err, "GetPOD")
 		return 1
 	}
-	runtime, err := util.NewRuntimeConnection(ctx, "")
-	if err != nil {
-		logger.Error(err, "RuntimeConnection")
-		return 1
-	}
-	netns, _, err := runtime.GetNetns(ctx, podObj)
+	netns, _, err := util.GetNetns(ctx, podObj)
 	if err != nil {
 		logger.Error(err, "GetNetns")
 		return 1
@@ -78,10 +73,12 @@ func getNetns(ctx context.Context, args []string) int {
 func add(ctx context.Context, args []string) int {
 	return invokeCni(ctx, "add", args)
 }
+
 // del Delete a network
 func del(ctx context.Context, args []string) int {
 	return invokeCni(ctx, "del", args)
 }
+
 // check Check a network
 func check(ctx context.Context, args []string) int {
 	return invokeCni(ctx, "check", args)
@@ -114,12 +111,7 @@ func invokeCni(ctx context.Context, op string, args []string) int {
 		logger.Error(err, "GetPOD")
 		return 1
 	}
-	runtime, err := util.NewRuntimeConnection(ctx, "")
-	if err != nil {
-		logger.Error(err, "RuntimeConnection")
-		return 1
-	}
-	netns, containerID, err := runtime.GetNetns(ctx, podObj)
+	netns, containerID, err := util.GetNetns(ctx, podObj)
 	if err != nil {
 		logger.Error(err, "GetNetns")
 		return 1
@@ -132,11 +124,11 @@ func invokeCni(ctx context.Context, op string, args []string) int {
 	}
 
 	cninet := libcni.NewCNIConfig([]string{"/opt/cni/bin"}, nil)
-	
+
 	rt := &libcni.RuntimeConf{
-		ContainerID:    containerID,
-		NetNS:          netns,
-		IfName:         *iface,
+		ContainerID: containerID,
+		NetNS:       netns,
+		IfName:      *iface,
 	}
 
 	logger.V(1).Info(
