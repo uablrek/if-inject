@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/containernetworking/cni/libcni"
 	"github.com/containernetworking/cni/pkg/types"
@@ -50,20 +51,13 @@ func getNetns(ctx context.Context, args []string) int {
 	if fset.Parse(args[1:]) != nil {
 		return 0
 	}
-	logger.V(2).Info("getNetns", "ns", ns, "pod", pod)
 	if *pod == "" {
 		logger.Error(fmt.Errorf("Must be specified"), "pod")
 		return 1
 	}
-	podObj, err := util.GetPOD(ctx, *ns, *pod)
-	if err != nil {
-		logger.Error(err, "GetPOD")
-		return 1
-	}
-	netns, _, err := util.GetNetns(ctx, podObj)
+	netns, err := util.GetNetns(ctx, *pod, *ns)
 	if err != nil {
 		logger.Error(err, "GetNetns")
-		return 1
 	}
 	fmt.Println(netns)
 	return 0
@@ -92,6 +86,7 @@ func invokeCni(ctx context.Context, op string, args []string) int {
 	pod := fset.String("pod", "", "POD")
 	iface := fset.String("interface", "net1", "Interface name in the POD")
 	spec := fset.String("spec", "", "The CNI spec (file)")
+	containerID := fset.String("containerid", "", "Defaults to netns")
 	if fset.Parse(args[1:]) != nil {
 		return 0
 	}
@@ -106,12 +101,7 @@ func invokeCni(ctx context.Context, op string, args []string) int {
 		return 1
 	}
 
-	podObj, err := util.GetPOD(ctx, *ns, *pod)
-	if err != nil {
-		logger.Error(err, "GetPOD")
-		return 1
-	}
-	netns, containerID, err := util.GetNetns(ctx, podObj)
+	netns, err := util.GetNetns(ctx, *pod, *ns)
 	if err != nil {
 		logger.Error(err, "GetNetns")
 		return 1
@@ -124,9 +114,13 @@ func invokeCni(ctx context.Context, op string, args []string) int {
 	}
 
 	cninet := libcni.NewCNIConfig([]string{"/opt/cni/bin"}, nil)
+	id := *containerID
+	if id == "" {
+		id = filepath.Base(netns)
+	}
 
 	rt := &libcni.RuntimeConf{
-		ContainerID: containerID,
+		ContainerID: id,
 		NetNS:       netns,
 		IfName:      *iface,
 	}
