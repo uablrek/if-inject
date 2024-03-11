@@ -44,23 +44,24 @@ kubectl get pods -n if-inject -o wide
 # On the node, pick a local POD
 pod=<pod-on-the-local-node>
 if-inject netns -ns if-inject -pod $pod
-# Output with cri-o (1.28.1/crun):
+# Output with crio (1.28.1/crun)
 /var/run/netns/c913ee97-ebf8-4e77-8167-96b157e5e149
 # Output with containerd (1.7.11/runc):
-/proc/776/ns/net
+/var/run/netns/cni-1c4812fa-1f8b-aea9-0f89-caddfc5f0489
 
-ns=$(if-inject netns -ns if-inject -pod $pod)
+nspath=$(if-inject netns -ns if-inject -pod $pod)
+ns=$(basename $nspath)
 ip link add pod0 type veth peer net1
 ip link set net1 netns $ns
-kubectl exec -n if-inject $pod -- ip link set net1 up
+ip -n $ns link set net1 up
 ip link set pod0 up
-kubectl exec -n if-inject $pod -- ip addr show net1
+ip -n $ns addr show net1
 ping fe80::48c8:baff:fed4:32d0%pod0   # (use your own link-local address of course)
 ```
 
 Since a `veth` pair is used, you can clean-up by removing either interface:
 ```
-kubectl exec -n if-inject $pod -- ip link del net1
+ip -n $ns link del net1
 # Or
 ip link del pod0
 ```

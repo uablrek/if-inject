@@ -15,7 +15,6 @@ import (
 
 	"github.com/go-logr/logr"
 	"google.golang.org/grpc"
-	k8s "k8s.io/api/core/v1"
 	cri "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
@@ -89,56 +88,75 @@ func doConnect(ctx context.Context, URL string) (*RuntimeConnection, error) {
 	return &conn, nil
 }
 
-// GetNetns Returns the netns and containerID for a POD
-func GetNetns(ctx context.Context, pod *k8s.Pod) (string, string, error) {
+// GetPodSandbox Returns the runtime PodSandbox for a K8s namespace/pod
+func GetPodSandbox(
+	ctx context.Context, conn *RuntimeConnection, pod, ns string) (
+	*cri.PodSandbox, error) {
+	request := &cri.ListPodSandboxRequest{
+		Filter: &cri.PodSandboxFilter{
+			LabelSelector: map[string]string{
+				"io.kubernetes.pod.name":      pod,
+				"io.kubernetes.pod.namespace": ns,
+			},
+		},
+	}
+	resp, err := conn.client.ListPodSandbox(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("ListPodSandbox %w", err)
+	}
+	if len(resp.Items) == 0 {
+		return nil, fmt.Errorf("PodSandbox not found")
+	}
+	if len(resp.Items) != 1 {
+		return nil, fmt.Errorf("Unexpected matches %d", len(resp.Items))
+	}
+	return resp.Items[0], nil
+}
+
+// GetNetns Returns the Linux netns path for a K8s namespace/pod
+func GetNetns(ctx context.Context, pod, ns string) (string, error) {
 	/*
-	   There doesn't seem to be a defined way, or best practice for
-	   this. The netns is not known in K8s, but in the CRI-plugin
-	   (e.g. cri-o or containerd). The safest way seem to be to get
-	   the pid of a running container and return "/proc/pid/ns/net".
+	   The best way seem to be to read the PodSandboxStatus from the
+	   runtime. It can be done manually with
+
+	     crictl pods
+	     crictl inspectp -o json NON-HOST-NETWORK-PODID \
+	       | jq ".info.runtimeSpec.linux.namespaces" \
+	       | jq -r '.[] | select(.type == "network") | .path'
+
+	   Please see https://github.com/containerd/containerd/issues/9838.
+
+	   A problem is that the runtime POD-ID must be used, which is not
+	   known by K8s. However the PodSandbox has labels
+	   "io.kubernetes.pod.name" and "io.kubernetes.pod.namespace" that
+	   can be used as a filter. The K8s API server is *not* involved.
 	*/
 	logger := logr.FromContextOrDiscard(ctx)
-	logger.V(4).Info("GetNetns", "pod", *pod)
-
-	// Find a running container, and get the ContainerID
-	var u *url.URL
-	var err error
-	for _, c := range pod.Status.ContainerStatuses {
-		if c.State.Running == nil {
-			continue
-		}
-		u, err = url.Parse(c.ContainerID)
-		if err != nil {
-			return "", "", err
-		}
-		break
-	}
-	if u == nil {
-		return "", "", fmt.Errorf("No running container found")
-	}
-	logger.V(2).Info("ContainerID", "url", u)
-
-	// Get the ContainerStatus from the runtime
 	conn, err := NewRuntimeConnection(ctx, "")
 	if err != nil {
-		return "", "", err
+		return "", fmt.Errorf("NewRuntimeConnection: %w", err)
+	}
+	podSandbox, err := GetPodSandbox(ctx, conn, pod, ns)
+	if err != nil {
+		return "", fmt.Errorf("GetPodSandbox: %w", err)
 	}
 	defer conn.Close()
-	request := &cri.ContainerStatusRequest{
-		ContainerId: u.Host,
-		Verbose:     true,		// request the "Info" map
+	logger.V(1).Info("PodSandbox", "id", podSandbox.Id)
+
+	request := &cri.PodSandboxStatusRequest{
+		PodSandboxId: podSandbox.Id,
+		Verbose:      true, // request the "Info" map
 	}
-	r, err := conn.client.ContainerStatus(ctx, request)
+	resp, err := conn.client.PodSandboxStatus(ctx, request)
 	if err != nil {
-		return "", "", err
+		return "", fmt.Errorf("PodSandboxStatus: %w", err)
 	}
 
-	// Read the "Info" map
-	info := r.GetInfo()
+	info := resp.GetInfo()
 	var infop any
 	err = json.Unmarshal([]byte(info["info"]), &infop)
 	if err != nil {
-		return "", "", err
+		return "", fmt.Errorf("Unmarshal info %w", err)
 	}
 	infomap := infop.(map[string]any)
 	// To see what we get from the runtime:
@@ -151,13 +169,10 @@ func GetNetns(ctx context.Context, pod *k8s.Pod) (string, string, error) {
 	for _, ns := range namespaces {
 		nsobj := ns.(map[string]any)
 		if nsobj["type"] == "network" {
-			return nsobj["path"].(string), u.Host, nil
+			// TODO: errorhandling on lookup and cast
+			return nsobj["path"].(string), nil
 		}
 	}
-	// Fallback to pid if no network namespace is found
-	pid, ok := infomap["pid"].(float64)
-	if !ok {
-		return "", "", fmt.Errorf("cannot get pid from containerStatus info")
-	}
-	return fmt.Sprintf("/proc/%d/ns/net", int(pid)), u.Host, nil
+
+	return "", fmt.Errorf("Namespace path not found")
 }
